@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
+  <meta http-equiv="refresh" content="120">
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>JTB RFID Vehicle Monitoring Dashboard</title>
   <style>
@@ -133,10 +134,65 @@
     </div>
   </div>
 
+  <!-- Leaflet CSS/JS for map display -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-sA+4g0p4kqfH0bYl3gTt1s0z4b0hVb1jz5RkNf2jRkM=" crossorigin="" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-o9N1j8mQ6XgV8zK3s8f0m4Q5Yb6VqF3Lk3tM4uY9v3s=" crossorigin=""></script>
+
   <script>
 
   const el = (id) => document.getElementById(id);
   let stats = { total: 0, compliant: 0, nonCompliant: 0, agents: 5 };
+
+  // --- Map setup (Leaflet) ---------------------------------------------
+  // Center map on Nigeria / Lagos by default
+  const MAP_CENTER = [6.5244, 3.3792];
+  const MAP_ZOOM = 6;
+  let map, markers = {};
+
+  function initMap() {
+    try {
+      map = L.map('mapPanel', { scrollWheelZoom: false }).setView(MAP_CENTER, MAP_ZOOM);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors'
+      }).addTo(map);
+    } catch (e) {
+      console.warn('Leaflet not available or map init failed', e);
+    }
+  }
+
+  function addOrUpdateMarker(tagId, lat, lng, title, status) {
+    if (!map) return;
+    const key = tagId || (title + Date.now());
+    const color = (status && status.toLowerCase().includes('non')) ? '#f59e0b' : '#10b981';
+    if (markers[key]) {
+      markers[key].setLatLng([lat, lng]);
+      markers[key].setStyle({ color });
+      markers[key].getPopup().setContent(`<b>${title}</b><br>${status || ''}`);
+    } else {
+      const circle = L.circleMarker([lat, lng], { radius: 8, color, fillColor: color, fillOpacity: 0.9 });
+      circle.bindPopup(`<b>${title}</b><br>${status || ''}`);
+      circle.addTo(map);
+      markers[key] = circle;
+    }
+  }
+
+  // Generate a random point within radiusKm of center
+  function randomNear([lat, lng], radiusKm = 50) {
+    // Approx conversions
+    const r = radiusKm / 111; // ~ degrees
+    const u = Math.random();
+    const v = Math.random();
+    const w = r * Math.sqrt(u);
+    const t = 2 * Math.PI * v;
+    const dx = w * Math.cos(t);
+    const dy = w * Math.sin(t);
+    return [lat + dy, lng + dx];
+  }
+
+  // Initialize map immediately
+  initMap();
 
   // WebSocket and HTTP protocol selection (supports https pages -> wss/https)
   const API_HOST = (typeof FRONTEND_API_HOST !== 'undefined' && FRONTEND_API_HOST) ? FRONTEND_API_HOST : window.location.host;
@@ -165,6 +221,13 @@
     function simulateRFIDScan() {
       const vehicle = getVehicleFromUrl();
       
+      // Ensure vehicle has lat/lng (generate randomly near center if not provided)
+      if (!vehicle.lat || !vehicle.lng) {
+        const [lat, lng] = randomNear(MAP_CENTER, 50);
+        vehicle.lat = lat;
+        vehicle.lng = lng;
+      }
+
       // Send to server (use configured API host so GitHub Pages can reach EC2)
       fetch(`${httpProtocol}://${API_HOST}/vehicle`, {
         method: 'POST',
@@ -195,6 +258,14 @@
         updateStats();
       } else if (data.type === 'vehicle') {
         addVehicle(data.vehicle);
+        // update map marker (use lat/lng if provided, otherwise generate)
+        const v = data.vehicle;
+        if (v.lat && v.lng) {
+          addOrUpdateMarker(v.tagId, v.lat, v.lng, v.plate, v.status);
+        } else {
+          const [lat, lng] = randomNear(MAP_CENTER, 50);
+          addOrUpdateMarker(v.tagId, lat, lng, v.plate, v.status);
+        }
       }
     };
 
@@ -273,7 +344,13 @@
 
     // Initialize with sample data only if not connected to WebSocket
     if (!ws || ws.readyState !== WebSocket.OPEN) {
-      sampleVehicles.forEach(addVehicle);
+      sampleVehicles.forEach(v => {
+        // give sample vehicles random coords for the demo map
+        const [lat, lng] = randomNear(MAP_CENTER, 50);
+        v.lat = lat; v.lng = lng;
+        addVehicle(v);
+        addOrUpdateMarker(v.tagId || v.plate, lat, lng, v.plate, v.status);
+      });
       sampleAgents.forEach(addAgent);
       sampleAlerts.forEach(addAlert);
     }
