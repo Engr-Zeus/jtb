@@ -134,16 +134,7 @@
   </div>
 
   <script>
-  /**
-   * API host configuration
-   * - If you host the frontend on GitHub Pages (or another origin), set a global
-   *   FRONTEND_API_HOST variable to '<EC2_IP>:3000' (or '<your-domain>') before
-   *   this script runs. Example (in GitHub Pages custom index.html header):
-   *   <script>var FRONTEND_API_HOST = '54.160.242.147:3000';</script>
-   *
-   * - If FRONTEND_API_HOST is not set, the script defaults to using
-   *   window.location.host (the same-origin behavior).
-   */
+
   const el = (id) => document.getElementById(id);
   let stats = { total: 0, compliant: 0, nonCompliant: 0, agents: 5 };
 
