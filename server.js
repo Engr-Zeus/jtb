@@ -29,6 +29,10 @@ let stats = {
   nonCompliant: 0
 };
 
+// Recent vehicles in memory (most-recent-first). Kept small to avoid memory growth.
+const RECENT_LIMIT = 200;
+let recentVehicles = [];
+
 // WebSocket connection handler
 wss.on('connection', (ws) => {
   clients.add(ws);
@@ -55,7 +59,11 @@ function broadcast(data) {
 // Route for receiving RFID data
 app.post('/vehicle', express.json(), (req, res) => {
   const vehicle = req.body;
-  
+  // Ensure minimal fields
+  if (!vehicle.tagId) vehicle.tagId = 'RFID-' + Math.random().toString(36).substr(2, 8).toUpperCase();
+  if (!vehicle.time) vehicle.time = new Date().toLocaleTimeString();
+  vehicle._serverTime = Date.now();
+
   // Update stats
   stats.total++;
     // status expected: 'Compliant' or 'Non Compliant'
@@ -71,9 +79,18 @@ app.post('/vehicle', express.json(), (req, res) => {
   broadcast({ type: 'vehicle', vehicle });
   broadcast({ type: 'stats', stats });
 
+  // store recent
+  recentVehicles.unshift(vehicle);
+  if (recentVehicles.length > RECENT_LIMIT) recentVehicles.pop();
+
   res.json({ success: true });
 });
 
 server.listen(PORT, () => {
   console.log(`✅ Server running at http://localhost:${PORT}`);
+});
+
+// Simple endpoint to return recent events + current stats so clients can catch up
+app.get('/recent', (req, res) => {
+  res.json({ stats, recent: recentVehicles });
 });

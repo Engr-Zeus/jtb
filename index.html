@@ -201,6 +201,9 @@
 
   // WebSocket Connection
   const ws = new WebSocket(`${wsProtocol}://${API_HOST}`);
+
+  // Track seen vehicles locally to avoid duplicate rendering when fetching recent + receiving live broadcasts
+  const seenVehicleIds = new Set();
     
     // Process URL parameters for vehicle data
     function getVehicleFromUrl() {
@@ -245,10 +248,39 @@
       });
     }
 
-    ws.onopen = () => {
+    // Determine whether this is the first open for this tab (sessionStorage is per-tab and survives reloads)
+    const _isFirstOpen = !sessionStorage.getItem('jtb_first_open');
+    if (_isFirstOpen) {
+      // mark as opened for this tab/session so reloads won't re-trigger the initial scan
+      try { sessionStorage.setItem('jtb_first_open', '1'); } catch (e) { /* ignore */ }
+    }
+
+    ws.onopen = async () => {
       console.log('Connected to server');
-      // Simulate RFID scan only on initial page load
-      simulateRFIDScan();
+      // Fetch recent events from server to catch up any missed events
+      try {
+        const resp = await fetch(`${httpProtocol}://${API_HOST}/recent`);
+        if (resp.ok) {
+          const data = await resp.json();
+          if (data && Array.isArray(data.recent)) {
+            // add recent in reverse order so oldest first
+            data.recent.slice().reverse().forEach(v => {
+              // dedupe by tagId
+              if (v.tagId && seenVehicleIds.has(v.tagId)) return;
+              addVehicle(v);
+              if (v.tagId) seenVehicleIds.add(v.tagId);
+              if (v.lat && v.lng) addOrUpdateMarker(v.tagId, v.lat, v.lng, v.plate, v.status);
+            });
+          }
+          if (data && data.stats) { stats = {...stats, ...data.stats}; updateStats(); }
+        }
+      } catch (e) {
+        console.warn('Failed to fetch recent events', e);
+      }
+
+      // Only simulate an RFID scan when the user first opens the page in this tab,
+      // not on subsequent reloads.
+      if (_isFirstOpen) simulateRFIDScan();
     };
 
     ws.onmessage = (event) => {
@@ -293,6 +325,10 @@
     }
 
     function addVehicle(vehicle){
+      // Avoid duplicates if we already rendered this vehicle (by tagId)
+      if (vehicle.tagId && seenVehicleIds.has(vehicle.tagId)) return;
+      if (vehicle.tagId) seenVehicleIds.add(vehicle.tagId);
+
       const log = el('vehicleLog');
       const div = document.createElement('div');
       div.className = 'log-entry';
