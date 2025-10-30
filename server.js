@@ -1,4 +1,5 @@
 import express from 'express';
+import cors from 'cors';
 import { WebSocketServer } from 'ws';
 import { createServer } from 'http';
 import { fileURLToPath } from 'url';
@@ -8,6 +9,8 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const app = express();
+// Allow CORS so the frontend hosted on a different origin (e.g. GitHub Pages)
+app.use(cors());
 const server = createServer(app);
 const wss = new WebSocketServer({ server });
 const PORT = 3000;

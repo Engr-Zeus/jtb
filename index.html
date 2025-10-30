@@ -134,11 +134,26 @@
   </div>
 
   <script>
+  /**
+   * API host configuration
+   * - If you host the frontend on GitHub Pages (or another origin), set a global
+   *   FRONTEND_API_HOST variable to '<EC2_IP>:3000' (or '<your-domain>') before
+   *   this script runs. Example (in GitHub Pages custom index.html header):
+   *   <script>var FRONTEND_API_HOST = '54.160.242.147:3000';</script>
+   *
+   * - If FRONTEND_API_HOST is not set, the script defaults to using
+   *   window.location.host (the same-origin behavior).
+   */
   const el = (id) => document.getElementById(id);
   let stats = { total: 0, compliant: 0, nonCompliant: 0, agents: 5 };
 
-    // WebSocket Connection
-    const ws = new WebSocket(`ws://${window.location.host}`);
+  // WebSocket and HTTP protocol selection (supports https pages -> wss/https)
+  const API_HOST = (typeof FRONTEND_API_HOST !== 'undefined' && FRONTEND_API_HOST) ? FRONTEND_API_HOST : window.location.host;
+  const wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+  const httpProtocol = window.location.protocol === 'https:' ? 'https' : 'http';
+
+  // WebSocket Connection
+  const ws = new WebSocket(`${wsProtocol}://${API_HOST}`);
     
     // Process URL parameters for vehicle data
     function getVehicleFromUrl() {
@@ -159,8 +174,8 @@
     function simulateRFIDScan() {
       const vehicle = getVehicleFromUrl();
       
-      // Send to server
-      fetch('/vehicle', {
+      // Send to server (use configured API host so GitHub Pages can reach EC2)
+      fetch(`${httpProtocol}://${API_HOST}/vehicle`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -13,6 +13,7 @@
   "type": "module",
   "dependencies": {
     "express": "^5.1.0",
-    "ws": "^8.18.3"
+    "ws": "^8.18.3",
+    "cors": "^2.8.5"
   }
 }
