@@ -92,11 +92,16 @@
             <div class="stat-card"><div class="stat-value" id="agentCount">0</div><div class="stat-label">Active Agents</div></div>
           </div>
         </div>
-
-        <!-- Map View -->
+        
+        <!-- Enforcement + Alerts (moved above map) -->
         <div class="panel">
-          <h2>Live Vehicle Map</h2>
-          <div id="mapPanel">🗺️ Map placeholder — shows live vehicle positions & checkpoints</div>
+          <h2>Enforcement & Alerts</h2>
+          <div>
+            <h3 style="font-size:14px;margin:10px 0;">Alerts</h3>
+            <div class="alerts" id="alerts"></div>
+            <h3 style="font-size:14px;margin:6px 0;">Active Agents</h3>
+            <div class="agent-list" id="agentList"></div>
+          </div>
         </div>
       </div>
 
@@ -108,15 +113,10 @@
           <div class="vehicle-log" id="vehicleLog"></div>
         </div>
 
-        <!-- Enforcement + Alerts -->
+        <!-- Map View (moved below enforcement) -->
         <div class="panel">
-          <h2>Enforcement & Alerts</h2>
-          <div>
-            <h3 style="font-size:14px;margin:6px 0;">Active Agents</h3>
-            <div class="agent-list" id="agentList"></div>
-            <h3 style="font-size:14px;margin:10px 0;">Alerts</h3>
-            <div class="alerts" id="alerts"></div>
-          </div>
+          <h2>Live Vehicle Map</h2>
+          <div id="mapPanel">🗺️ Map placeholder — shows live vehicle positions & checkpoints</div>
         </div>
       </div>
 
