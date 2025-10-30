@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>RFID Checkpoint — Vehicle Compliance (Enforcement)</title>
+  <style>
+    :root{--bg:#0f1724;--card:#0b1220;--muted:#9aa4b2;--accent:#06b6d4;--good:#10b981;--bad:#ef4444;--glass:rgba(255,255,255,0.04);font-family:Inter,ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial}
+    html,body{height:100%;margin:0;background:linear-gradient(180deg,#071022 0%,#0b1220 100%);color:#e6eef6}
+    .wrap{min-height:100vh;display:flex;align-items:flex-start;justify-content:center;padding:28px}
+    .card{width:1100px;max-width:98%;background:linear-gradient(180deg, rgba(255,255,255,0.02), transparent);border-radius:14px;padding:18px;box-shadow:0 8px 30px rgba(2,6,23,0.6);border:1px solid rgba(255,255,255,0.03)}
+    header{display:flex;align-items:center;gap:16px;margin-bottom:12px}
+    .logo{width:56px;height:56px;border-radius:10px;background:linear-gradient(135deg,var(--accent),#4f46e5);display:flex;align-items:center;justify-content:center;font-weight:700}
+    h1{font-size:18px;margin:0}
+    p.sub{margin:0;color:var(--muted);font-size:13px}
+
+    .layout{display:grid;grid-template-columns:300px 1fr 320px;gap:14px}
+    .panel{background:var(--card);padding:14px;border-radius:10px;border:1px solid var(--glass)}
+
+    /* left: meter + checks */
+    .meter{display:flex;flex-direction:column;align-items:center;gap:12px}
+    .meter svg{width:150px;height:150px}
+    .status{font-size:14px}
+    .checks{display:flex;flex-direction:column;gap:8px;width:100%}
+    .check{display:flex;align-items:center;gap:12px;padding:10px;border-radius:8px;background:linear-gradient(180deg, rgba(255,255,255,0.01), transparent);border:1px solid rgba(255,255,255,0.02)}
+    .check.ok .icon{background:linear-gradient(90deg, rgba(16,185,129,0.14), rgba(16,185,129,0.06));}
+    .check.fail .icon{background:linear-gradient(90deg, rgba(239,68,68,0.12), rgba(239,68,68,0.04));}
+
+    /* center: details + image */
+    .details{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .info{padding:10px;border-radius:8px;border:1px solid var(--glass);background:rgba(255,255,255,0.01)}
+    .plate{font-weight:800;letter-spacing:1px;font-size:20px}
+    .color-swatch{width:36px;height:20px;border-radius:4px;border:1px solid rgba(255,255,255,0.06);display:inline-block;vertical-align:middle}
+    .vehicle-image{margin-top:12px;border-radius:10px;overflow:hidden;border:1px solid rgba(255,255,255,0.04);background:#071026}
+    .vehicle-image img{width:100%;height:auto;display:block}
+
+    /* right: actions + log */
+    .actions{display:flex;flex-direction:column;gap:10px}
+    .btn{padding:10px 12px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:rgba(255,255,255,0.02);cursor:pointer}
+    .btn.primary{background:linear-gradient(90deg,var(--accent),#4f46e5);color:#031026;border:none}
+    .btn.warn{background:linear-gradient(90deg,#f59e0b,#ef4444);color:#081217;border:none}
+    .log{margin-top:8px;max-height:360px;overflow:auto;padding:8px;border-radius:8px;background:linear-gradient(180deg,rgba(255,255,255,0.01),transparent);border:1px solid rgba(255,255,255,0.02)}
+    .log .entry{padding:10px;border-radius:8px;margin-bottom:8px;background:rgba(255,255,255,0.02)}
+    .entry .time{font-size:12px;color:var(--muted)}
+    .entry .text{font-size:14px}
+    .entry.success{border-left:4px solid var(--good)}
+    .entry.info{border-left:4px solid var(--accent)}
+    .entry.fail{border-left:4px solid var(--bad)}
+
+    .muted{color:var(--muted);font-size:13px}
+
+    @media (max-width:1100px){.layout{grid-template-columns:260px 1fr;}.layout > :nth-child(3){display:none}}
+    @media (max-width:720px){.layout{grid-template-columns:1fr}.meter svg{width:120px;height:120px}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card" role="document">
+      <header>
+        <div class="logo">RF</div>
+        <div>
+          <h1>RFID Checkpoint — Vehicle Compliance (Enforcement)</h1>
+          <p class="sub">Non-compliance variant + activity log. Simulate messages and enforcement actions.</p>
+        </div>
+      </header>
+
+      <div class="layout">
+        <!-- left -->
+        <div class="panel">
+          <div class="meter">
+            <svg viewBox="0 0 220 120" aria-hidden="true">
+              <defs>
+                <linearGradient id="g1" x1="0" x2="1">
+                  <stop offset="0%" stop-color="#ef4444"/>
+                  <stop offset="50%" stop-color="#f59e0b"/>
+                  <stop offset="100%" stop-color="#10b981"/>
+                </linearGradient>
+              </defs>
+              <g transform="translate(110,100)">
+                <path id="bgArc" d="M-90,0 A90,90 0 0,1 90,0" fill="none" stroke="rgba(255,255,255,0.04)" stroke-width="18" stroke-linecap="round"/>
+                <path id="fgArc" d="M-90,0 A90,90 0 0,1 90,0" fill="none" stroke="url(#g1)" stroke-width="18" stroke-linecap="round" stroke-dasharray="565.48" stroke-dashoffset="565.48"/>
+                <circle r="46" fill="#071026" stroke="rgba(255,255,255,0.03)" stroke-width="2"/>
+                <text id="percent" x="0" y="6" text-anchor="middle" font-size="22" fill="#e6eef6" font-weight="700">0%</text>
+              </g>
+            </svg>
+            <div class="status"><span class="muted">Overall compliance</span><strong id="complianceLabel">UNKNOWN</strong></div>
+
+            <div class="checks">
+              <div class="check" id="shfCheck"><div class="icon">💳</div><div class="meta"><span class="label">Single Haul Fee (SHF)</span><strong id="shfText">—</strong></div></div>
+              <div class="check" id="stickerCheck"><div class="icon">🔖</div><div class="meta"><span class="label">RFID Sticker Installed</span><strong id="stickerText">—</strong></div></div>
+              <div class="check" id="plateCheck"><div class="icon">🚘</div><div class="meta"><span class="label">Plate / Vehicle Data</span><strong id="plateCheckText">—</strong></div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- center -->
+        <div>
+          <div class="details">
+            <div class="info">
+              <h3>Plate</h3>
+              <p class="plate" id="plate">—</p>
+              <p class="muted">Scanned at: <span id="scanTime">—</span></p>
+              <p class="muted">Location: <span id="scanLocation">—</span></p>
+            </div>
+            <div class="info">
+              <h3>Vehicle</h3>
+              <p id="brandModel">—</p>
+              <p class="muted">Color: <span class="color-swatch" id="colorSwatch"></span> <span id="colorText" style="margin-left:8px"></span></p>
+            </div>
+          </div>
+
+          <div class="vehicle-image">
+            <img id="vehicleImage" src="assets/mercedes.jpg" alt="Vehicle image" />
+          </div>
+
+          <div style="display:flex;gap:12px;margin-top:10px;">
+            <div class="info" style="flex:1">
+              <h3>Route</h3>
+              <div style="display:flex;gap:8px;align-items:center"><div class="badge" id="origin">—</div><div class="muted">→</div><div class="badge" id="destination">—</div></div>
+            </div>
+            <div class="info" style="flex:1">
+              <h3>RFID Tag</h3>
+              <p id="tagId">—</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- right: actions + log -->
+        <div class="panel">
+          <h3 style="margin-top:4px">Actions</h3>
+          <div class="actions">
+            <button class="btn primary" id="btnSendEnforce">Send to Enforcement Team</button>
+            <button class="btn" id="btnSendC2">Send to Command & Control</button>
+            <button class="btn" id="btnSendOwner">Send SMS to Car Owner</button>
+            <button class="btn warn" id="btnEnforce">Enforce (immobilize)</button>
+            <div class="muted">Quick simulation: clicking these will add entries to the activity log and change statuses.</div>
+          </div>
+
+          <h3 style="margin-top:12px">Activity Log</h3>
+          <div class="log" id="activityLog" aria-live="polite"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    // Non-compliant sample (changed)
+    const sampleNonCompliant = {
+      tagId: 'RFID-ZZ9X-1100',
+      plate: 'KJA-002PL',
+      brand: 'Mercedes',
+      model: 'Sprinter 2016',
+      color: '#2b2b2b',
+      colorName: 'Obsidian Black',
+      origin: 'KANO',
+      destination: 'ABUJA',
+      shfPaid: false,
+      stickerInstalled: false,
+      checkpointId: 'CP-007',
+      scannedAt: new Date().toLocaleString(),
+      scanLocation: 'Kano Expressway Toll Gate',
+      imageUrl: '', // intentionally empty to simulate missing photo
+      ownerPhone: '+2348012345678'
+    };
+
+    // utility
+    function el(id){return document.getElementById(id)}
+    function setText(id, txt){ const e=el(id); if(e) e.textContent=txt }
+    function setSwatch(color){ const s=el('colorSwatch'); if(s) s.style.background=color }
+    function setCheckClass(id,ok){ const elCheck=el(id); if(!elCheck) return; elCheck.classList.toggle('ok',!!ok); elCheck.classList.toggle('fail',!ok)}
+
+    function updateGauge(percent){
+      const arc=el('fgArc'), txt=el('percent'), label=el('complianceLabel');
+      const totalLen=565.48, offset=totalLen-(totalLen*(percent/100));
+      arc.style.transition='stroke-dashoffset 700ms ease-out'; arc.style.strokeDashoffset=offset;
+      txt.textContent=Math.round(percent)+'%';
+      if(percent>=80){label.textContent='COMPLIANT';label.style.color='var(--good)'}
+      else if(percent>=50){label.textContent='PARTIAL';label.style.color='var(--accent)'}
+      else{label.textContent='NON-COMPLIANT';label.style.color='var(--bad)'}
+    }
+
+    function addLogEntry(text, level='info'){
+      const log=el('activityLog'); const div=document.createElement('div'); div.className='entry '+(level||'info');
+      const now=new Date(); const time=now.toLocaleString(); div.innerHTML=`<div class="time">${time}</div><div class="text">${text}</div>`;
+      log.prepend(div);
+    }
+
+    function populate(data){
+      setText('tagId',data.tagId||'—'); setText('plate',data.plate||'—'); setText('brandModel',((data.brand||'')+' '+(data.model||'')).trim()||'—');
+      setSwatch(data.color||'#fff'); setText('colorText',data.colorName||'—'); setText('origin',data.origin||'—'); setText('destination',data.destination||'—');
+      setText('checkpoint',data.checkpointId||'—'); setText('scanTime',data.scannedAt||'-'); setText('scanLocation',data.scanLocation||'—');
+      setText('tagId',data.tagId||'—');
+
+      const img=el('vehicleImage'); if(data.imageUrl){ img.src=data.imageUrl; img.alt=`${data.brand||''} ${data.model||''}` } else { img.src='data:image/svg+xml;utf8,'+encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360"><rect width="100%" height="100%" fill="#071026"/><text x="50%" y="50%" fill="#9aa4b2" font-family="Arial" font-size="20" dominant-baseline="middle" text-anchor="middle">No image available</text></svg>`); img.alt='No image available' }
+
+      setText('shfText',data.shfPaid?'PAID':'NOT PAID'); setCheckClass('shfCheck',data.shfPaid);
+      setText('stickerText',data.stickerInstalled?'INSTALLED':'NOT INSTALLED'); setCheckClass('stickerCheck',data.stickerInstalled);
+      const hasVehicle=!!(data.plate&&data.brand&&data.model); setText('plateCheckText', hasVehicle ? 'OK' : 'MISSING'); setCheckClass('plateCheck', hasVehicle);
+
+      // scoring
+      let score=0; score+=data.shfPaid?60:0; score+=data.stickerInstalled?25:0; score+=hasVehicle?15:0; updateGauge(score);
+
+      // if non-compliant, auto-log
+      if(score < 80){ addLogEntry('Auto-detected non-compliance. Generated enforcement workflow.', 'fail'); }
+    }
+
+    // button actions (simulate network calls)
+    function sendToEnforcement(data){ addLogEntry(`Sent alert to Enforcement Team for ${data.plate} at ${data.scanLocation}.`, 'info'); setTimeout(()=>addLogEntry('Enforcement team acknowledged and dispatched unit.', 'success'), 900); }
+    function sendToC2(data){ addLogEntry(`Message sent to Command & Control: vehicle ${data.plate} flagged.`, 'info'); setTimeout(()=>addLogEntry('Command & Control logged the event.', 'success'), 700); }
+    function sendSmsOwner(data){ addLogEntry(`SMS sent to owner ${data.ownerPhone}: Please stop, vehicle ${data.plate} flagged for non-compliance.`, 'info'); setTimeout(()=>addLogEntry('SMS delivery confirmed.', 'success'), 1000); }
+    function enforceVehicle(data){ addLogEntry(`Enforcement action: immobilization requested for ${data.plate}.`, 'fail'); setTimeout(()=>{ addLogEntry('Vehicle immobilized by nearest enforcement unit. Owner notified of impound requirements.', 'success'); // mark UI
+        // visual mark on UI
+        document.body.style.boxShadow='inset 0 0 0 6px rgba(239,68,68,0.06)';
+        const label=el('complianceLabel'); if(label) label.textContent='ENFORCED'; if(label) label.style.color='var(--bad)';
+      }, 1500);
+    }
+
+    // wire buttons
+    el('btnSendEnforce').addEventListener('click', ()=> sendToEnforcement(sampleNonCompliant));
+    el('btnSendC2').addEventListener('click', ()=> sendToC2(sampleNonCompliant));
+    el('btnSendOwner').addEventListener('click', ()=> sendSmsOwner(sampleNonCompliant));
+    el('btnEnforce').addEventListener('click', ()=> enforceVehicle(sampleNonCompliant));
+
+    // initialize
+    populate(sampleNonCompliant);
+    // pre-populate some log items
+    addLogEntry('RFID handshake completed. Tag read: '+sampleNonCompliant.tagId, 'info');
+    addLogEntry('No SHF payment record found for this trip.', 'fail');
+    addLogEntry('RFID sticker presence check failed.', 'fail');
+
+    // Expose API
+    window.populateWith = function(d){ populate(d); };
+    window.appendLog = function(txt, level){ addLogEntry(txt, level); };
+  </script>
+</body>
+</html>

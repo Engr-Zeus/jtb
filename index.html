@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>JTB RFID Vehicle Monitoring Dashboard</title>
+  <style>
+    :root {
+      --bg:#0f1724;--card:#0b1220;--muted:#9aa4b2;
+      --accent:#06b6d4;--good:#10b981;--bad:#ef4444;
+      --glass:rgba(255,255,255,0.04);
+      font-family:Inter,ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial;
+    }
+    html,body{height:100%;margin:0;background:linear-gradient(180deg,#071022 0%,#0b1220 100%);color:#e6eef6}
+    .wrap{min-height:100vh;display:flex;align-items:flex-start;justify-content:center;padding:24px}
+    .card{width:1400px;max-width:98%;background:linear-gradient(180deg, rgba(255,255,255,0.02), transparent);border-radius:14px;padding:18px;box-shadow:0 8px 30px rgba(2,6,23,0.6);border:1px solid rgba(255,255,255,0.03)}
+    header{display:flex;align-items:center;gap:16px;margin-bottom:18px}
+    .logo{width:60px;height:60px;border-radius:10px;background:linear-gradient(135deg,var(--accent),#4f46e5);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:20px}
+    h1{font-size:20px;margin:0}
+    p.sub{margin:0;color:var(--muted);font-size:13px}
+    h2{margin-top:0;font-size:16px;border-bottom:1px solid rgba(255,255,255,0.06);padding-bottom:6px}
+
+    /* layout */
+    .dashboard{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:18px}
+    .panel{background:var(--card);padding:14px;border-radius:10px;border:1px solid var(--glass)}
+    
+    /* stats */
+    .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+    .stat-card{background:rgba(255,255,255,0.02);padding:16px;border-radius:8px;text-align:center}
+    .stat-value{font-size:32px;font-weight:bold;color:var(--accent)}
+    .stat-label{color:var(--muted);font-size:14px;margin-top:4px}
+
+    /* vehicle log */
+    .vehicle-log{max-height:500px;overflow-y:auto}
+    .log-entry{display:grid;grid-template-columns:auto 1fr auto;gap:12px;padding:10px;border-bottom:1px solid var(--glass);align-items:center}
+    .entry-time{color:var(--muted);font-size:13px}
+    .entry-plate{font-weight:600;font-size:16px}
+    .entry-details{color:var(--muted);font-size:13px}
+  .status-badge{padding:4px 8px;border-radius:4px;font-size:12px}
+  .status-badge.compliant{background:var(--good);color:#fff}
+  .status-badge.non-compliant{background:#f59e0b;color:#fff}
+  .status-badge.flagged{background:var(--bad);color:#fff}
+
+    /* map + agent activity */
+    #mapPanel{height:320px;background:linear-gradient(180deg,#091427,#0b1828);border-radius:10px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:13px}
+
+    .agent-list{max-height:200px;overflow-y:auto}
+    .agent{display:flex;justify-content:space-between;padding:8px;border-bottom:1px solid rgba(255,255,255,0.05)}
+    .agent span{font-size:13px}
+    .agent .ok{color:var(--good)}
+    .agent .offline{color:var(--bad)}
+
+    /* alerts */
+    .alerts{max-height:260px;overflow-y:auto}
+    .alert{padding:8px 10px;border-radius:8px;margin-bottom:8px;background:rgba(255,255,255,0.03)}
+    .alert.critical{border-left:4px solid var(--bad)}
+    .alert.warning{border-left:4px solid #f59e0b}
+    .alert.info{border-left:4px solid var(--accent)}
+    .alert .time{font-size:12px;color:var(--muted)}
+    .alert .text{font-size:14px}
+
+    /* analytics */
+    .chart-placeholder{height:220px;background:linear-gradient(180deg,#091427,#0c1829);display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:13px;border-radius:8px}
+    
+    @media (max-width:1100px){
+      .stats{grid-template-columns:repeat(2,1fr);}
+      .dashboard{grid-template-columns:1fr;}
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <header>
+        <div class="logo">JTB</div>
+        <div>
+          <h1>Joint Tax Board — RFID Vehicle Compliance Dashboard</h1>
+          <p class="sub">National Live Monitoring of Tagged Commercial Vehicles, Enforcement Activity, and Compliance Analytics</p>
+        </div>
+      </header>
+
+      <!-- Top Overview Panels -->
+      <div class="dashboard">
+        <!-- Statistics -->
+        <div class="panel">
+          <h2>Daily Summary</h2>
+          <div class="stats">
+            <div class="stat-card"><div class="stat-value" id="totalVehicles">0</div><div class="stat-label">Vehicles Tracked</div></div>
+            <div class="stat-card"><div class="stat-value" id="clearedVehicles">0</div><div class="stat-label">Compliant</div></div>
+            <div class="stat-card"><div class="stat-value" id="pendingVehicles">0</div><div class="stat-label">Pending/Flagged</div></div>
+            <div class="stat-card"><div class="stat-value" id="agentCount">0</div><div class="stat-label">Active Agents</div></div>
+          </div>
+        </div>
+
+        <!-- Map View -->
+        <div class="panel">
+          <h2>Live Vehicle Map</h2>
+          <div id="mapPanel">🗺️ Map placeholder — shows live vehicle positions & checkpoints</div>
+        </div>
+      </div>
+
+      <!-- Secondary Panels -->
+      <div class="dashboard">
+        <!-- Vehicle Log -->
+        <div class="panel">
+          <h2>Recent Vehicle Scans</h2>
+          <div class="vehicle-log" id="vehicleLog"></div>
+        </div>
+
+        <!-- Enforcement + Alerts -->
+        <div class="panel">
+          <h2>Enforcement & Alerts</h2>
+          <div>
+            <h3 style="font-size:14px;margin:6px 0;">Active Agents</h3>
+            <div class="agent-list" id="agentList"></div>
+            <h3 style="font-size:14px;margin:10px 0;">Alerts</h3>
+            <div class="alerts" id="alerts"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Analytics -->
+      <div class="dashboard">
+        <div class="panel">
+          <h2>Compliance Analytics</h2>
+          <div class="chart-placeholder">📊 Placeholder for compliance chart (Cleared vs Pending vs Flagged)</div>
+        </div>
+        <div class="panel">
+          <h2>Top Routes / Offenders</h2>
+          <div class="chart-placeholder">🚚 Placeholder for most scanned routes and flagged vehicles</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  const el = (id) => document.getElementById(id);
+  let stats = { total: 0, compliant: 0, nonCompliant: 0, agents: 5 };
+
+    // WebSocket Connection
+    const ws = new WebSocket(`ws://${window.location.host}`);
+    
+    // Process URL parameters for vehicle data
+    function getVehicleFromUrl() {
+      const params = new URLSearchParams(window.location.search);
+      // If URL has vehicle data, use it; otherwise generate random data
+      return {
+        time: new Date().toLocaleTimeString(),
+        plate: params.get('plate') || 'KJA-234AB',
+        details: params.get('details') || 'Toyota Hiace - White',
+        status: params.get('status') || 'Compliant',
+        origin: params.get('origin') || 'LAGOS',
+        destination: params.get('destination') || 'IBADAN',
+        tagId: params.get('tagId') || 'RFID-' + Math.random().toString(36).substr(2, 8).toUpperCase()
+      };
+    }
+
+    // Simulate RFID scan
+    function simulateRFIDScan() {
+      const vehicle = getVehicleFromUrl();
+      
+      // Send to server
+      fetch('/vehicle', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(vehicle)
+      });
+
+      // Log the RFID scan
+      addAlert({
+        time: vehicle.time,
+        text: `RFID Scan: ${vehicle.plate} (${vehicle.tagId}) - Route: ${vehicle.origin} to ${vehicle.destination}`,
+        level: vehicle.status === 'Compliant' ? 'info' : 'warning'
+      });
+    }
+
+    ws.onopen = () => {
+      console.log('Connected to server');
+      // Simulate RFID scan only on initial page load
+      simulateRFIDScan();
+    };
+
+    ws.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      if (data.type === 'stats') {
+        stats = {...stats, ...data.stats};
+        updateStats();
+      } else if (data.type === 'vehicle') {
+        addVehicle(data.vehicle);
+      }
+    };
+
+    ws.onclose = () => {
+      console.log('Disconnected from server');
+      // Auto reconnect after 5 seconds
+      setTimeout(() => {
+        window.location.reload();
+      }, 5000);
+    };
+
+    function updateStats(){
+      el('totalVehicles').textContent = stats.total;
+      // display compliant / non-compliant using existing element IDs
+      el('clearedVehicles').textContent = stats.compliant;
+      el('pendingVehicles').textContent = stats.nonCompliant;
+      el('agentCount').textContent = stats.agents;
+    }
+
+    function statusClass(status) {
+      if (!status) return '';
+      const s = status.toString().toLowerCase();
+      if (s.includes('non')) return 'non-compliant';
+      return s.replace(/\s+/g, '-');
+    }
+
+    function addVehicle(vehicle){
+      const log = el('vehicleLog');
+      const div = document.createElement('div');
+      div.className = 'log-entry';
+      const cls = statusClass(vehicle.status);
+      div.innerHTML = `
+        <div class="entry-time">${vehicle.time}</div>
+        <div>
+          <div class="entry-plate">${vehicle.plate}</div>
+          <div class="entry-details">${vehicle.details}</div>
+        </div>
+        <div class="status-badge ${cls}">${vehicle.status}</div>
+      `;
+      log.insertBefore(div, log.firstChild);
+    }
+
+    function addAgent(agent){
+      const div = document.createElement('div');
+      div.className = 'agent';
+      div.innerHTML = `<span>${agent.name}</span><span class="${agent.status==='Online'?'ok':'offline'}">${agent.status}</span>`;
+      el('agentList').appendChild(div);
+    }
+
+    function addAlert(alert){
+      const div = document.createElement('div');
+      div.className = `alert ${alert.level}`;
+      div.innerHTML = `<div class="time">${alert.time}</div><div class="text">${alert.text}</div>`;
+      el('alerts').insertBefore(div, el('alerts').firstChild);
+    }
+
+    // Initialize
+    updateStats();
+    const sampleVehicles = [
+      { time:'14:32', plate:'KJA-234AB', details:'Toyota Hiace - White', status:'Compliant' },
+      { time:'14:29', plate:'RBC-882XZ', details:'Mazda Truck - Blue', status:'Non Compliant' },
+      { time:'14:25', plate:'KTU-110AA', details:'Mercedes Sprinter - Black', status:'Compliant' },
+    ];
+    const sampleAgents = [
+      { name:'Agent Musa (Kaduna)', status:'Online' },
+      { name:'Agent Bassey (Calabar)', status:'Offline' },
+      { name:'Agent John (Abuja)', status:'Online' },
+      { name:'Agent Grace (Lagos)', status:'Online' },
+      { name:'Agent Ifeanyi (Owerri)', status:'Online' },
+    ];
+    const sampleAlerts = [
+      { time:'14:33', text:'Vehicle KJA-234AB scanned outside approved route.', level:'warning' },
+      { time:'14:27', text:'Vehicle RBC-882XZ marked as non-compliant (expired tag).', level:'critical' },
+      { time:'14:20', text:'Checkpoint Abuja-3 reader reconnected.', level:'info' },
+    ];
+
+    // Initialize with sample data only if not connected to WebSocket
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      sampleVehicles.forEach(addVehicle);
+      sampleAgents.forEach(addAgent);
+      sampleAlerts.forEach(addAlert);
+    }
+  </script>
+</body>
+</html>
